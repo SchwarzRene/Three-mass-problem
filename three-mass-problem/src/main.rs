@@ -1,81 +1,103 @@
-struct Vec{
-    x : f64,
-    y : f64,
+use macroquad::prelude::*;
+
+#[derive(Debug, Clone, Copy)]
+struct Vec2D {
+    x: f64,
+    y: f64,
 }
 
+#[derive(Debug)]
 struct Mass {
-    pos : Vec,
-    mass : f64,
+    pos: Vec2D,
+    vel: Vec2D, // Added velocity
+    mass: f64,
 }
 
-impl Mass{
-    fn update_velocity(&mut self, force : Vec, time_constant : f64 ){
-        //Get the acceleration from the force
+impl Mass {
+    fn update_velocity(&mut self, force: Vec2D, time_step: f64) {
+        // Acceleration = Force / Mass
         let acc_x = force.x / self.mass;
         let acc_y = force.y / self.mass;
 
-        self.pos.x += acc_x * f64::powf( time_constant, 2. ) / 2.;
-        self.pos.y += acc_y * f64::powf( time_constant, 2. ) / 2.;
+        // Update velocity
+        self.vel.x += acc_x * time_step;
+        self.vel.y += acc_y * time_step;
 
+        // Update position using velocity
+        self.pos.x += self.vel.x * time_step;
+        self.pos.y += self.vel.y * time_step;
     }
 }
 
-fn main() {
-    //Earth-mass 5.97219 × 10**24 kg
-    let planet_1 = &mut Mass {
-        pos : Vec { x : 0., y : 0. },
-        mass : 5.97219 * f64::powf( 10., 24. ),
+#[macroquad::main("Gravity Simulation")]
+async fn main() {
+    let mut earth = Mass {
+        pos: Vec2D { x: 0., y: 0. },
+        vel: Vec2D { x: 0., y: 0. }, // Earth is stationary
+        mass: 5.97219e24, // Earth mass
     };
 
-    //Moon-mass 7.34767309 × 10**22
-    let planet_2 = &mut Mass {
-        pos : Vec { x : 384400000., y : 0. },
-        mass : 7.34767309 * f64::powf( 10., 22. ),
+    let mut moon = Mass {
+        pos: Vec2D { x: 384400000., y: 0. }, // Moon starts at 384,400 km from Earth
+        vel: Vec2D { x: 0., y: 1022. }, // Initial orbital velocity (1022 m/s for near-circular orbit)
+        mass: 7.34767309e22, // Moon mass
     };
-    update_masses( planet_1, planet_2, 1. );
-}
 
-fn update_masses( m1 : &mut Mass, m2 : &mut Mass, time_constant : f64 ){
-    let d12 = get_euclidian_distance(&m1.pos, &m2.pos );
-    let f12 = calculate_force( m1.mass, m2.mass, d12 );
+    loop {
+        clear_background(BLACK);
 
-    let f12_xy = get_xy( &m1.pos, &m2.pos, f12 );
-    let f12_xy_negative = turn_vector( &f12_xy );
+        // Update physics
+        update_masses(&mut earth, &mut moon, 24000.0);
 
-    m1.update_velocity( f12_xy, time_constant );
-    m2.update_velocity( f12_xy_negative, time_constant );
-}
+        // Draw updated positions
+        draw_circle(get_normalized_value(earth.pos.x), get_normalized_value(earth.pos.y), 30., BLUE);
+        draw_circle(get_normalized_value(moon.pos.x), get_normalized_value(moon.pos.y), 10., WHITE);
 
-fn turn_vector( v : &Vec ) -> Vec{
-    Vec{
-        x : -v.x,
-        y : -v.y
+        next_frame().await;
     }
 }
 
-fn get_xy( p1 : &Vec, p2 : &Vec, f : f64 ) -> Vec{
+fn get_normalized_value(v: f64) -> f32 {
+    let scale_factor = 200. / 384400000.; // Normalize distance based on Moon's orbit
+    (v * scale_factor + 400.) as f32 // Centering objects in window
+}
+
+fn update_masses(m1: &mut Mass, m2: &mut Mass, time_step: f64) {
+    let d12 = get_euclidian_distance(&m1.pos, &m2.pos);
+    
+    // Avoid singularities (if too close, cap force)
+    let min_distance = 1000000.; // 1000 km to prevent extreme forces
+    let d12_safe = d12.max(min_distance);
+
+    let f12 = calculate_force(m1.mass, m2.mass, d12_safe);
+
+    let f12_xy = get_xy(&m1.pos, &m2.pos, f12);
+    let f12_xy_negative = turn_vector(&f12_xy);
+
+    m1.update_velocity(f12_xy, time_step);
+    m2.update_velocity(f12_xy_negative, time_step);
+}
+
+fn turn_vector(v: &Vec2D) -> Vec2D {
+    Vec2D { x: -v.x, y: -v.y }
+}
+
+fn get_xy(p1: &Vec2D, p2: &Vec2D, f: f64) -> Vec2D {
     let distance_x = p2.x - p1.x;
     let distance_y = p2.y - p1.y;
+    let angle = distance_y.atan2(distance_x);
 
-    let angle = distance_y.atan2( distance_x );
-
-    let f_x = angle.cos() * f;
-    let f_y = angle.sin() * f;
-
-    Vec{
-        x : f_x,
-        y : f_y
+    Vec2D {
+        x: angle.cos() * f,
+        y: angle.sin() * f,
     }
 }
 
-fn calculate_force( m1 : f64, m2 : f64, d : f64 ) -> f64{
-    //G = 6.67 x 10-11 N m2 / kg2
-    let g = 6.67 * f64::powf( 10., 11. );
-
-    let f = g * m1 * m2 / f64::powf( d, 2. );
-    f
+fn calculate_force(m1: f64, m2: f64, d: f64) -> f64 {
+    let g = 6.67430e-11; // Gravitational constant
+    g * m1 * m2 / d.powi(2)
 }
 
-fn get_euclidian_distance( p1 : &Vec, p2 : &Vec ) -> f64{
-    f64::powf( f64::powf( p1.x - p2.x, 2. ) + f64::powf( p1.y - p2.y, 2. ), 0.5 )
+fn get_euclidian_distance(p1: &Vec2D, p2: &Vec2D) -> f64 {
+    ((p1.x - p2.x).powi(2) + (p1.y - p2.y).powi(2)).sqrt()
 }
