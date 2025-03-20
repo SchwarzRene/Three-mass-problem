@@ -6,55 +6,47 @@ struct Vec{
 struct Mass {
     pos : Vec,
     mass : f64,
-    velocity : Vec
 }
 
 impl Mass{
-    fn update_pos(&mut self, new : Vec){
-        self.pos.x += new.x;
-        self.pos.y += new.y;
+    fn update_velocity(&mut self, force : Vec, time_constant : f64 ){
+        //Get the acceleration from the force
+        let acc_x = force.x / self.mass;
+        let acc_y = force.y / self.mass;
+
+        self.pos.x += acc_x * f64::powf( time_constant, 2. ) / 2.;
+        self.pos.y += acc_y * f64::powf( time_constant, 2. ) / 2.;
+
     }
 }
 
 fn main() {
-    println!("Hello, world!");
-
     //Earth-mass 5.97219 × 10**24 kg
-    let planet_1 = &Mass {
+    let planet_1 = &mut Mass {
         pos : Vec { x : 0., y : 0. },
         mass : 5.97219 * f64::powf( 10., 24. ),
-        velocity : Vec { x : 0., y : 0. }
     };
 
     //Moon-mass 7.34767309 × 10**22
-    let planet_2 = &Mass {
+    let planet_2 = &mut Mass {
         pos : Vec { x : 384400000., y : 0. },
         mass : 7.34767309 * f64::powf( 10., 22. ),
-        velocity : Vec { x : 0., y : 0. }
     };
-
-    let planet_3 = &Mass {
-        pos : Vec { x : -384400000., y : 0. },
-        mass : 7.34767309 * f64::powf( 10., 22. ),
-        velocity : Vec { x : 0., y : 0. }
-    };
-
-    let f = update_masses( planet_1, planet_2, planet_3, 1. );
-    println!( "{f}" );
+    update_masses( planet_1, planet_2, 1. );
 }
 
-fn update_masses( m1 : &mut Mass, m2 : &mut Mass, m3 : &mut Mass, timeConstant : f64 ){
+fn update_masses( m1 : &mut Mass, m2 : &mut Mass, time_constant : f64 ){
     let d12 = get_euclidian_distance(&m1.pos, &m2.pos );
     let f12 = calculate_force( m1.mass, m2.mass, d12 );
 
     let f12_xy = get_xy( &m1.pos, &m2.pos, f12 );
-    let f12_xy_negative = turn_vector( f12_xy );
+    let f12_xy_negative = turn_vector( &f12_xy );
 
-    m1.update_pos( f12_xy );
-    m2.update_pos( f12_xy_negative );
+    m1.update_velocity( f12_xy, time_constant );
+    m2.update_velocity( f12_xy_negative, time_constant );
 }
 
-fn turn_vector( v : Vec ) -> Vec{
+fn turn_vector( v : &Vec ) -> Vec{
     Vec{
         x : -v.x,
         y : -v.y
