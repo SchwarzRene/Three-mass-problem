@@ -1,1 +1,0 @@
-C:\Users\rene3\OneDrive\Dokumente\GitHub\Three-mass-problem\three-mass-problem\target\debug\three-mass-problem.exe: C:\Users\rene3\OneDrive\Dokumente\GitHub\Three-mass-problem\three-mass-problem\src\main.rs
